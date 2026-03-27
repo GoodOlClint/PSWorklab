@@ -28,7 +28,6 @@ PSWorklab/
       New-SecretVarFile.ps1
       Remove-SecretVarFile.ps1
       Wait-TcpReady.ps1
-      Import-PSHcl.ps1
       Write-HclFile.ps1
       ConvertTo-PackerVarArgs.ps1
       Providers/
@@ -69,10 +68,10 @@ All functions kept the same names except:
 
 - `Microsoft.PowerShell.SecretManagement` -- vault operations
 - `powershell-yaml` -- YAML config parsing
+- `PSHcl` -- HCL parsing/formatting (for Write-HclFile)
 - `PSProxmoxVE` -- Proxmox API (optional, only needed for Proxmox provider functions)
-- `PSHcl` -- HCL parsing/formatting (optional, only needed for Write-HclFile)
 
-PSProxmoxVE and PSHcl are NOT RequiredModules in the manifest since they're only needed for specific features. `Import-PSProxmoxVE` and `Import-PSHcl` handle lazy loading.
+PSProxmoxVE is NOT a RequiredModule in the manifest since it's only needed for Proxmox. `Import-PSProxmoxVE` handles lazy loading with fallback to dev builds at `~/Source/PSProxmoxVE`.
 
 ## Known PSProxmoxVE Issues
 

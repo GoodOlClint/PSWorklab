@@ -10,7 +10,8 @@
 
     RequiredModules   = @(
         'Microsoft.PowerShell.SecretManagement',
-        'powershell-yaml'
+        'powershell-yaml',
+        'PSHcl'
     )
 
     FunctionsToExport = @(
@@ -38,7 +39,6 @@
         'Wait-TcpReady',
 
         # HCL / IaC tooling
-        'Import-PSHcl',
         'Write-HclFile',
         'ConvertTo-PackerVarArgs',
 

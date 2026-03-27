@@ -3,11 +3,9 @@ function Write-HclFile {
     .SYNOPSIS
         Validates an HCL string and writes it to disk with consistent formatting.
     .DESCRIPTION
-        Uses PSHcl to validate HCL syntax and round-trip format the content before
-        writing. If validation fails, displays detailed error diagnostics with line
-        numbers and throws.
-
-        Requires the PSHcl module (Install-Module PSHcl -Scope CurrentUser).
+        Uses PSHcl (a required module) to validate HCL syntax and round-trip format
+        the content before writing. If validation fails, displays detailed error
+        diagnostics with line numbers and throws.
     .PARAMETER Hcl
         The HCL content string to validate and write.
     .PARAMETER Path
@@ -34,8 +32,6 @@ function Write-HclFile {
         [Parameter(Mandatory)]
         [string]$FileName
     )
-
-    Import-PSHcl
 
     $diags = Test-HclSyntax -InputObject $Hcl -Detailed
     $errors = @($diags | Where-Object { $_.Message -ne "OK" })

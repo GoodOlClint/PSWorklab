@@ -8,7 +8,7 @@ PowerShell module for worklab automation -- secrets, config, and hypervisor inte
 - [Microsoft.PowerShell.SecretManagement](https://www.powershellgallery.com/packages/Microsoft.PowerShell.SecretManagement) -- vault operations
 - [powershell-yaml](https://www.powershellgallery.com/packages/powershell-yaml) -- YAML config parsing
 - [PSProxmoxVE](https://github.com/GoodOlClint/PSProxmoxVE) -- Proxmox API (optional, only needed for Proxmox provider functions)
-- [PSHcl](https://www.powershellgallery.com/packages/PSHcl) -- HCL parsing and formatting (optional, only needed for `Write-HclFile`)
+- [PSHcl](https://www.powershellgallery.com/packages/PSHcl) -- HCL parsing and formatting
 
 ## Installation
 
@@ -27,6 +27,7 @@ Required modules are installed automatically when the manifest is loaded, or ins
 Install-Module Microsoft.PowerShell.SecretManagement -Scope CurrentUser
 Install-Module Microsoft.PowerShell.SecretStore -Scope CurrentUser
 Install-Module powershell-yaml -Scope CurrentUser
+Install-Module PSHcl -Scope CurrentUser
 ```
 
 ## Quick start
@@ -136,13 +137,11 @@ finally {
 
 ### HCL / IaC tooling
 
-Functions for working with Terraform and Packer. `Write-HclFile` requires the
-[PSHcl](https://www.powershellgallery.com/packages/PSHcl) module (optional dependency,
-lazy-loaded like PSProxmoxVE).
+Functions for working with Terraform and Packer. PSHcl is a required module
+dependency, so HCL functions are always available.
 
 | Function | Description |
 |----------|-------------|
-| `Import-PSHcl` | Lazy-load the PSHcl module |
 | `Write-HclFile` | Validate HCL syntax, format via round-trip, and write to disk |
 | `ConvertTo-PackerVarArgs` | Convert a hashtable to a `-var key=value` argument array for splatting |
 

@@ -1,11 +1,8 @@
 BeforeAll {
-    # Write-HclFile depends on Import-PSHcl and PSHcl cmdlets
-    . (Join-Path $PSScriptRoot '..' 'src' 'PSWorklab' 'Public' 'Import-PSHcl.ps1')
     . (Join-Path $PSScriptRoot '..' 'src' 'PSWorklab' 'Public' 'Write-HclFile.ps1')
 }
 
-# -Skip must evaluate at discovery time (before BeforeAll), so check inline
-Describe 'Write-HclFile' -Skip:(-not (Get-Module -ListAvailable PSHcl)) {
+Describe 'Write-HclFile' {
     BeforeEach {
         $tempDir = Join-Path ([System.IO.Path]::GetTempPath()) "write-hcl-test-$(Get-Random)"
         New-Item -ItemType Directory -Path $tempDir -Force | Out-Null
@@ -45,11 +42,5 @@ variable "test" {
 '@
         Write-HclFile -Hcl $hcl -Path $tempDir -FileName 'test.tf' -WhatIf
         Test-Path (Join-Path $tempDir 'test.tf') | Should -BeFalse
-    }
-}
-
-Describe 'Write-HclFile (PSHcl not available)' -Skip:([bool](Get-Module -ListAvailable PSHcl)) {
-    It 'Would skip -- PSHcl module is not installed' {
-        Set-ItResult -Skipped -Because 'PSHcl module is not installed'
     }
 }
