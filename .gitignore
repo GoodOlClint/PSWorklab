@@ -1,0 +1,14 @@
+# IDE
+.vscode/
+.idea/
+
+# PowerShell
+*.dll
+*.pdb
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Secrets
+*.env

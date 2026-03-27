@@ -1,0 +1,51 @@
+@{
+    RootModule        = 'PSWorklab.psm1'
+    ModuleVersion     = '0.1.0'
+    GUID              = 'a3f7e8d2-4c91-4b6f-9e3a-1d5c8f2b7a04'
+    Author            = 'GoodOlClint'
+    Description       = 'PowerShell module for worklab automation -- secrets, config, and hypervisor integration for Packer/Terraform/DSC lab workflows.'
+
+    PowerShellVersion = '7.0'
+
+    RequiredModules   = @(
+        'Microsoft.PowerShell.SecretManagement',
+        'powershell-yaml'
+    )
+
+    FunctionsToExport = @(
+        # Config
+        'Initialize-WorklabContext',
+        'Get-WorklabConfig',
+        'Get-ConfigValue',
+        'Set-WorklabConfigValue',
+
+        # Secrets
+        'New-ComplexPassword',
+        'Get-SecretPath',
+        'Get-OrCreateSecret',
+        'Get-RequiredSecret',
+        'Remove-ScopedSecrets',
+        'Test-VaultReady',
+        'Import-LabSecrets',
+        'Remove-LabSecrets',
+
+        # Utility
+        'Wait-TcpReady',
+
+        # Providers/Proxmox
+        'Import-PSProxmoxVE',
+        'Connect-WorklabProxmox',
+        'Initialize-ProxmoxToken'
+    )
+
+    CmdletsToExport   = @()
+    VariablesToExport  = @()
+    AliasesToExport    = @()
+
+    PrivateData = @{
+        PSData = @{
+            Tags       = @('worklab', 'proxmox', 'packer', 'terraform', 'lab', 'automation')
+            ProjectUri = 'https://github.com/GoodOlClint/PSWorklab'
+        }
+    }
+}
