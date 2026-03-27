@@ -234,11 +234,14 @@ PSWorklab generates Terraform HCL for two networking modes:
 
 ### VyOS (networking_mode: vyos)
 
-Each lab gets an isolated VLAN with VyOS managing DHCP, firewall rules, and routing. VyOS is deployed via Packer from ISO and managed by the `thomasfinstad/vyos-rolling` Terraform provider (API key authentication).
+A single VyOS instance is deployed once as a foundation service (Packer from ISO) with a trunk interface connected to the lab VLAN bridge. Each lab adds a VLAN interface (VIF) to that shared VyOS instance -- there is **not** one VyOS per lab.
+
+The `thomasfinstad/vyos-rolling` Terraform provider manages VyOS configuration via its HTTP API (API key authentication).
 
 Lab creation automatically generates HCL that:
 - Creates a Proxmox SDN VNet and subnet for the lab VLAN
-- Configures VyOS VLAN interface, DHCP server, and firewall rules via Terraform
+- Adds a VIF to the shared VyOS trunk interface for the lab's VLAN ID
+- Configures DHCP server and firewall rules on that VIF via VyOS provider
 - Assigns static IPs to domain controllers (.10, .11), DHCP to all other VMs
 
 ### Flat (networking_mode: flat)
