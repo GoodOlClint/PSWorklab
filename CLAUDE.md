@@ -46,7 +46,7 @@ PSWorklab/
 
 1. Caller does `Import-Module PSWorklab` then `Initialize-WorklabContext -ProjectRoot <path>` to set the project root.
 2. All functions use `$script:ProjectRoot` to locate `worklab-config.yml`.
-3. Secrets are stored in a SecretManagement vault named `WorklabVault` (configurable via `$script:VaultName` in ModuleState).
+3. Secrets are stored in the default SecretManagement vault (or one specified via `Initialize-WorklabContext -VaultName`).
 4. Hypervisor-specific functions live under `Public/Providers/`. Currently only Proxmox is implemented.
 
 ## Consumer: worklab Project

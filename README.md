@@ -57,8 +57,16 @@ finally {
 
 ### 1. Create a vault
 
+PSWorklab uses the default SecretManagement vault. Register one if you haven't already:
+
 ```powershell
-Register-SecretVault -Name 'WorklabVault' -ModuleName Microsoft.PowerShell.SecretStore -DefaultVault
+Register-SecretVault -Name 'MyVault' -ModuleName Microsoft.PowerShell.SecretStore -DefaultVault
+```
+
+Or specify a vault explicitly when initializing:
+
+```powershell
+Initialize-WorklabContext -ProjectRoot ~/Source/worklab -VaultName 'SpecificVault'
 ```
 
 ### 2. Configure your project

@@ -1,6 +1,6 @@
 # Module-scoped state -- accessible to all functions in the module, not exported.
 
-$script:VaultName = "WorklabVault"
+$script:VaultName = $null    # Set by Initialize-WorklabContext (explicit or default vault)
 $script:ProjectRoot = $null  # Set by Initialize-WorklabContext or callers
 $script:ProxmoxTokenSecretName = "PROXMOX_TOKEN_SECRET"
 
