@@ -46,6 +46,7 @@
         'Get-TemplateRegistry',
         'Resolve-TemplateVmId',
         'Register-Template',
+        'Get-StaleTemplate',
 
         # Lab generation
         'New-Lab',
@@ -56,11 +57,16 @@
         'Get-WindowsIsoInfo',
         'Get-SqlIsoVersion',
 
+        # Server initialization
+        'Initialize-LabServer',
+        'Test-LabServerReady',
+
         # Providers/Proxmox
         'Import-PSProxmoxVE',
         'Connect-WorklabProxmox',
         'Initialize-ProxmoxToken',
-        'Get-NextProxmoxVmId'
+        'Get-NextProxmoxVmId',
+        'Get-LabServerInventory'
     )
 
     CmdletsToExport   = @()
