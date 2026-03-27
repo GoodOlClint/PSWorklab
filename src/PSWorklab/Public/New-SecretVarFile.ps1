@@ -14,6 +14,14 @@ function New-SecretVarFile {
         The returned path should be passed as:
           terraform plan -var-file="$varFile"
           packer build -var-file="$varFile"
+    .PARAMETER Tool
+        Which tool the var file is for: Terraform or Packer.
+    .PARAMETER TemplateName
+        Template name for looking up the admin password (Packer only).
+    .PARAMETER LabName
+        Lab name for looking up lab-specific secrets (Terraform only).
+    .PARAMETER IncludeBackend
+        Also include S3-compatible backend secrets (Terraform only).
     .EXAMPLE
         $varFile = New-SecretVarFile -Tool Terraform -LabName lab-03
         try {
@@ -112,35 +120,5 @@ function New-SecretVarFile {
 
         Write-Host "  Wrote $($vars.Count) secrets to $tempFile ($Tool)" -ForegroundColor DarkGray
         return $tempFile
-    }
-}
-
-function Remove-SecretVarFile {
-    <#
-    .SYNOPSIS
-        Securely removes a secret var file created by New-SecretVarFile.
-    .DESCRIPTION
-        Overwrites the file contents before deletion to reduce the window where
-        secrets are recoverable from disk. Safe to call if the file does not exist.
-    .EXAMPLE
-        Remove-SecretVarFile -Path $varFile
-    #>
-    [CmdletBinding(SupportsShouldProcess)]
-    param (
-        [Parameter(Mandatory)]
-        [string]$Path
-    )
-
-    if (-not (Test-Path $Path)) { return }
-
-    if ($PSCmdlet.ShouldProcess($Path, "Remove secret var file")) {
-        # Overwrite with zeros before deleting
-        $length = (Get-Item $Path).Length
-        if ($length -gt 0) {
-            $zeros = [byte[]]::new([Math]::Min($length, 4096))
-            [System.IO.File]::WriteAllBytes($Path, $zeros)
-        }
-        Remove-Item -Path $Path -Force
-        Write-Host "  Removed secret var file: $Path" -ForegroundColor DarkGray
     }
 }

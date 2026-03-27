@@ -7,18 +7,31 @@ PowerShell module extracted from the `worklab` project's `scripts/SecretHelpers.
 ```
 PSWorklab/
   src/PSWorklab/
-    PSWorklab.psd1          # Module manifest (exports, dependencies)
-    PSWorklab.psm1          # Loader -- dot-sources Private/ then Public/**
+    PSWorklab.psd1                # Module manifest (exports, dependencies)
+    PSWorklab.psm1                # Loader -- dot-sources Private/ then Public/**
     Private/
-      ModuleState.ps1       # Module-scoped variables ($script:VaultName, etc.)
-      Set-TrackedEnvVar.ps1 # Internal helper for Import-LabSecret env var tracking
+      ModuleState.ps1             # Module-scoped variables ($script:VaultName, etc.)
+      Set-TrackedEnvVar.ps1       # Internal helper for Import-LabSecret env var tracking
     Public/
-      Config.ps1            # Initialize-WorklabContext, Get-WorklabConfig, Get-ConfigValue, Set-WorklabConfigValue
-      Secrets.ps1           # Vault operations: passwords, secrets, env var loading/cleanup
-      SecretVarFile.ps1     # New-SecretVarFile, Remove-SecretVarFile (file-based alternative to env vars)
-      Utility.ps1           # Wait-TcpReady (cross-platform TCP polling)
+      Initialize-WorklabContext.ps1
+      Get-WorklabConfig.ps1
+      Get-ConfigValue.ps1
+      Set-WorklabConfigValue.ps1
+      New-ComplexPassword.ps1
+      Get-SecretPath.ps1
+      Get-OrCreateSecret.ps1
+      Get-RequiredSecret.ps1
+      Remove-ScopedSecret.ps1
+      Test-VaultReady.ps1
+      Import-LabSecret.ps1
+      Remove-LabSecret.ps1
+      New-SecretVarFile.ps1
+      Remove-SecretVarFile.ps1
+      Wait-TcpReady.ps1
       Providers/
-        Proxmox.ps1         # Import-PSProxmoxVE, Connect-WorklabProxmox, Initialize-ProxmoxToken
+        Import-PSProxmoxVE.ps1
+        Connect-WorklabProxmox.ps1
+        Initialize-ProxmoxToken.ps1
 ```
 
 ## How It Works

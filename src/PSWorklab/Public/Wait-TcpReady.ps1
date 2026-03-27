@@ -5,6 +5,16 @@ function Wait-TcpReady {
     .DESCRIPTION
         Polls a TCP port in a loop until it connects or the timeout elapses.
         Cross-platform -- uses TcpClient instead of Test-NetConnection.
+    .PARAMETER IP
+        The IP address or hostname to connect to.
+    .PARAMETER Port
+        The TCP port number.
+    .PARAMETER Name
+        A friendly name for log output. Defaults to "IP:Port".
+    .PARAMETER TimeoutSeconds
+        Maximum time to wait before throwing. Defaults to 300 (5 minutes).
+    .PARAMETER PollIntervalSeconds
+        Seconds between connection attempts. Defaults to 5.
     .EXAMPLE
         Wait-TcpReady -IP 10.101.0.10 -Port 5986 -Name "DC1 WinRM" -TimeoutSeconds 300
     #>

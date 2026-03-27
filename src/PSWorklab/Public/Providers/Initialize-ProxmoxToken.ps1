@@ -1,83 +1,3 @@
-function Import-PSProxmoxVE {
-    <#
-    .SYNOPSIS
-        Imports the PSProxmoxVE module, searching known locations if needed.
-    .DESCRIPTION
-        Checks in order: already loaded, on PSModulePath, dev path at
-        ~/Source/PSProxmoxVE. Throws with install instructions if not found.
-    #>
-    [CmdletBinding()]
-    param ()
-
-    if (Get-Module PSProxmoxVE) { return }
-
-    if (Get-Module -ListAvailable PSProxmoxVE) {
-        Import-Module PSProxmoxVE -ErrorAction Stop
-        return
-    }
-
-    # Fallback: check known development path
-    $devRoot = Join-Path -Path ([Environment]::GetFolderPath('UserProfile')) -ChildPath "Source" -AdditionalChildPath "PSProxmoxVE"
-    $binDir = Join-Path -Path $devRoot -ChildPath "src" -AdditionalChildPath "PSProxmoxVE", "bin"
-    $candidates = if (Test-Path $binDir) {
-        @(Get-ChildItem -Path $binDir -Recurse -Filter "PSProxmoxVE.psd1" -ErrorAction SilentlyContinue)
-    } else { @() }
-
-    if ($candidates.Count -gt 0) {
-        # Prefer Release build, then highest .NET version
-        $manifest = $candidates |
-            Sort-Object @(
-                @{ Expression = { $_.FullName -match 'Release' }; Descending = $true }
-                @{ Expression = { if ($_.FullName -match 'net(\d+)') { [int]$Matches[1] } else { 0 } }; Descending = $true }
-            ) |
-            Select-Object -First 1
-        Import-Module $manifest.FullName -ErrorAction Stop
-        Write-Host "  Loaded PSProxmoxVE from dev path: $($manifest.DirectoryName)" -ForegroundColor DarkGray
-        return
-    }
-
-    throw @"
-PSProxmoxVE module not found. Install it using one of:
-  - PSGallery: Install-Module PSProxmoxVE -Scope CurrentUser
-  - From source: cd ~/Source/PSProxmoxVE && dotnet build
-"@
-}
-
-function Connect-WorklabProxmox {
-    <#
-    .SYNOPSIS
-        Establishes a PSProxmoxVE session using worklab config and vault credentials.
-    .OUTPUTS
-        The PveSession object (also set as the active session in PSProxmoxVE module state).
-    #>
-    [CmdletBinding()]
-    param ()
-
-    Import-PSProxmoxVE
-
-    $config = Get-WorklabConfig -RequiredFields @('proxmox.api_url', 'proxmox.api_token_id')
-    $tokenSecret = Get-Secret -Vault $script:VaultName -Name $script:ProxmoxTokenSecretName -AsPlainText -ErrorAction Stop
-    $tokenId = $config.proxmox.api_token_id
-    $fullToken = "$tokenId=$tokenSecret"
-
-    $uri = [System.Uri]::new($config.proxmox.api_url)
-    $server = $uri.Host
-    $port = if ($uri.Port -gt 0) { $uri.Port } else { 8006 }
-    $skipCert = (Get-ConfigValue $config 'proxmox.skip_cert_check' $true) -eq $true
-
-    $connectParams = @{
-        Server    = $server
-        Port      = $port
-        ApiToken  = $fullToken
-        PassThru  = $true
-    }
-    if ($skipCert) { $connectParams.SkipCertificateCheck = $true }
-
-    $session = Connect-PveServer @connectParams
-    Write-Host "  Connected to Proxmox: ${server}:${port}" -ForegroundColor DarkGray
-    return $session
-}
-
 function Initialize-ProxmoxToken {
     <#
     .SYNOPSIS
@@ -90,6 +10,14 @@ function Initialize-ProxmoxToken {
         The user's password is never stored -- only the generated token secret.
         Idempotent: skips role/token creation if they already exist. Use -Force to
         regenerate the token (deletes and recreates).
+    .PARAMETER Credential
+        Proxmox credentials. Prompted interactively if not supplied.
+    .PARAMETER Force
+        Delete and recreate the token if it already exists.
+    .EXAMPLE
+        Initialize-ProxmoxToken
+    .EXAMPLE
+        Initialize-ProxmoxToken -Credential (Get-Credential root@pam) -Force
     .OUTPUTS
         The API token ID string (e.g. "root@pam!worklab").
     #>
