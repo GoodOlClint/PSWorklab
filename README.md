@@ -1,25 +1,23 @@
 # PSWorklab
 
-PowerShell module for worklab automation -- secrets, config, and hypervisor integration for Packer/Terraform/DSC lab workflows.
+PowerShell module for worklab automation -- secrets, config, hypervisor integration, and Terraform/Packer orchestration for lab workflows.
 
 ## Requirements
 
 - PowerShell 7.0+
 - [Microsoft.PowerShell.SecretManagement](https://www.powershellgallery.com/packages/Microsoft.PowerShell.SecretManagement) -- vault operations
 - [powershell-yaml](https://www.powershellgallery.com/packages/powershell-yaml) -- YAML config parsing
-- [PSProxmoxVE](https://github.com/GoodOlClint/PSProxmoxVE) -- Proxmox API (optional, only needed for Proxmox provider functions)
 - [PSHcl](https://www.powershellgallery.com/packages/PSHcl) -- HCL parsing and formatting
+- [PSProxmoxVE](https://github.com/GoodOlClint/PSProxmoxVE) -- Proxmox API (optional, only needed for Proxmox provider functions)
+- [Packer](https://developer.hashicorp.com/packer) -- template image builds
+- [Terraform](https://developer.hashicorp.com/terraform) -- infrastructure provisioning
 
 ## Installation
-
-### From source
 
 ```powershell
 git clone https://github.com/GoodOlClint/PSWorklab.git
 Import-Module ./PSWorklab/src/PSWorklab/PSWorklab.psd1
 ```
-
-### Dependencies
 
 Required modules are installed automatically when the manifest is loaded, or install them manually:
 
@@ -32,75 +30,108 @@ Install-Module PSHcl -Scope CurrentUser
 
 ## Quick start
 
+The fastest path from zero to a working lab:
+
 ```powershell
-Import-Module PSWorklab -ErrorAction Stop
-Initialize-WorklabContext -ProjectRoot ~/Source/worklab
+# 1. Guided server initialization (prerequisites, credentials, host inventory)
+Initialize-LabServer -ProjectRoot ~/Source/worklab
 
-# Load and query config
-$config = Get-WorklabConfig
-Get-ConfigValue $config 'proxmox.node' 'pve'
+# 2. Build foundation templates (VyOS, Ubuntu, Windows) via worklab scripts
+#    See worklab project README for Packer build instructions
 
-# Check vault readiness
-Test-VaultReady
+# 3. Create a lab
+New-Lab -LabName lab-03 -VlanId 103 -IpCidr 10.103.0.0/24 -Domain lab03.internal
 
-# Load secrets as env vars, run a build, then clean up
-Import-LabSecret -IncludePacker -TemplateName server-2025
-try {
-    packer build template.pkr.hcl
-}
-finally {
-    Remove-LabSecret
-}
+# 4. Check for stale templates
+Get-StaleTemplate -MaxAgeDays 30
 ```
 
 ## Setup
 
-### 1. Create a vault
+### Option A: Guided setup (recommended)
 
-PSWorklab uses the default SecretManagement vault. Register one if you haven't already:
+```powershell
+Initialize-LabServer -ProjectRoot ~/Source/worklab
+```
+
+This walks through: prerequisite checks, vault setup, starter config creation, Proxmox API token creation, and host inventory discovery.
+
+### Option B: Manual setup
+
+#### 1. Create a vault
+
+PSWorklab uses the default SecretManagement vault:
 
 ```powershell
 Register-SecretVault -Name 'MyVault' -ModuleName Microsoft.PowerShell.SecretStore -DefaultVault
 ```
 
-Or specify a vault explicitly when initializing:
+Or specify a vault explicitly:
 
 ```powershell
 Initialize-WorklabContext -ProjectRoot ~/Source/worklab -VaultName 'SpecificVault'
 ```
 
-### 2. Configure your project
+#### 2. Configure your project
 
 Create a `worklab-config.yml` in your project root:
 
 ```yaml
 hypervisor: proxmox
+networking_mode: vyos
 
 proxmox:
   api_url: https://pve.local:8006
   api_token_id: root@pam!worklab
   node: pve
-  storage: local-lvm
+  storage_pool: local-lvm
+  sdn_zone: worklab
   skip_cert_check: true
 
-networking_mode: vyos
+vyos:
+  api_url: https://10.0.0.2
+  trunk_interface: eth1
+
+terraform:
+  role_defaults:
+    dc:
+      cores: 2
+      memory: 4096
+    member:
+      cores: 2
+      memory: 4096
+    sql:
+      cores: 4
+      memory: 8192
+      data_disk_size: 100
+    workgroup:
+      cores: 2
+      memory: 4096
 ```
 
-### 3. Set up Proxmox API token
+#### 3. Set up Proxmox API token
 
 ```powershell
 Initialize-ProxmoxToken
 ```
 
-This interactively creates a least-privilege API token on your Proxmox server, stores the secret in the vault, and writes the token ID back to your config file.
+This creates a least-privilege API token, stores the secret in the vault, and writes the token ID back to config.
 
 ## Functions
+
+### Server initialization
+
+| Function | Description |
+|----------|-------------|
+| `Initialize-LabServer` | Guided setup: prerequisites, vault, config, API token, host inventory |
+| `Test-LabServerReady` | Quick check that all prerequisites and config are in place |
+| `Get-LabServerInventory` | Discover Proxmox host topology (nodes, storage, bridges, VMs, ISOs) |
 
 ### Config
 
 | Function | Description |
 |----------|-------------|
-| `Initialize-WorklabContext` | Set the project root for the session |
+| `Initialize-WorklabContext` | Set the project root and vault for the session |
 | `Get-WorklabConfig` | Load `worklab-config.yml` as a hashtable |
 | `Get-ConfigValue` | Read a dot-path value with a default fallback |
 | `Set-WorklabConfigValue` | Update a single YAML key in place |
@@ -127,67 +158,60 @@ An alternative to environment variables -- writes secrets to a temporary JSON fi
 | `New-SecretVarFile` | Write secrets to a temp `.auto.tfvars.json` or `.auto.pkrvars.json` file |
 | `Remove-SecretVarFile` | Securely overwrite and delete a secret var file |
 
-```powershell
-$varFile = New-SecretVarFile -Tool Terraform -LabName lab-03
-try {
-    terraform plan -var-file="$varFile"
-}
-finally {
-    Remove-SecretVarFile -Path $varFile
-}
-```
+### Lab generation
 
-### Utility
+Config-driven Terraform HCL generation. Supports all three hypervisors (proxmox, vmware, hyperv) and both networking modes (vyos, flat).
 
 | Function | Description |
 |----------|-------------|
-| `Wait-TcpReady` | Poll a TCP port until it responds or times out (cross-platform) |
+| `New-Lab` | Generate lab config + Terraform files in one step |
+| `New-LabConfig` | Build an editable `lab-config.yml` from parameters + product definitions |
+| `New-LabTerraform` | Generate `.tf` files from an existing `lab-config.yml` |
+
+```powershell
+# One-step: generate everything
+New-Lab -LabName lab-03 -VlanId 103 -IpCidr 10.103.0.0/24 -Domain lab03.internal
+
+# Or two-step: generate config, edit it, then generate HCL
+New-LabConfig -LabName lab-03 -VlanId 103 -IpCidr 10.103.0.0/24 -Domain lab03.internal
+# ... edit terraform/labs/lab-03/lab-config.yml (change VM sizes, templates, etc.) ...
+New-LabTerraform -LabName lab-03
+```
+
+With product definitions:
+
+```powershell
+New-Lab -LabName lab-03 -VlanId 103 -IpCidr 10.103.0.0/24 -Domain lab03.internal `
+    -Products @("myproduct:1.0", "another:2.0")
+```
 
 ### HCL / IaC tooling
 
-Functions for working with Terraform and Packer. PSHcl is a required module
-dependency, so HCL functions are always available.
-
 | Function | Description |
 |----------|-------------|
-| `Write-HclFile` | Validate HCL syntax, format via round-trip, and write to disk |
+| `Write-HclFile` | Validate HCL syntax, format via PSHcl round-trip, and write to disk |
 | `ConvertTo-PackerVarArgs` | Convert a hashtable to a `-var key=value` argument array for splatting |
-
-```powershell
-# Generate and write a validated Terraform file
-$hcl = @"
-variable "proxmox_api_token" {
-  type      = string
-  sensitive = true
-}
-"@
-Write-HclFile -Hcl $hcl -Path ./terraform/lab-03 -FileName variables.tf
-
-# Build a packer command with -var args from a hashtable
-$vars = @{
-    proxmox_api_url  = $config.proxmox.api_url
-    proxmox_node     = $config.proxmox.node
-    vm_id            = 9001
-}
-$packerArgs = ConvertTo-PackerVarArgs -Variables $vars -Subcommand build -TrailingArgs $BuildFile
-& packer @packerArgs
-```
 
 ### Template registry
 
-Functions for managing `build-info/worklab-templates.yml`, which tracks Packer-built
-VM templates and their IDs.
+Manages `build-info/worklab-templates.yml`, which tracks Packer-built VM templates.
 
 | Function | Description |
 |----------|-------------|
 | `Get-TemplateRegistry` | Load the template registry as a hashtable |
 | `Resolve-TemplateVmId` | Look up a template name to VM ID (or reverse lookup by ID) |
 | `Register-Template` | Add or update a template entry after a successful build |
+| `Get-StaleTemplate` | Find templates older than a threshold (default 30 days) |
+
+```powershell
+# Check which templates need rebuilding
+Get-StaleTemplate -MaxAgeDays 30
+
+# Register a template after a Packer build
+Register-Template -TemplateName server-2025 -VmId 9001
+```
 
 ### ISO inspection (Windows-only)
-
-These functions mount ISOs to extract version metadata. They require Windows
-(DISM module and Mount-DiskImage). Pass version parameters explicitly on other platforms.
 
 | Function | Description |
 |----------|-------------|
@@ -202,41 +226,36 @@ These functions mount ISOs to extract version metadata. They require Windows
 | `Connect-WorklabProxmox` | Connect to Proxmox using config and vault credentials |
 | `Initialize-ProxmoxToken` | Create a least-privilege API token and store it in the vault |
 | `Get-NextProxmoxVmId` | Find the next available VM ID on a Proxmox node |
+| `Get-LabServerInventory` | Discover host topology (nodes, storage, bridges, VMs, ISOs, SDN) |
+
+## Networking
+
+PSWorklab generates Terraform HCL for two networking modes:
+
+### VyOS (networking_mode: vyos)
+
+Each lab gets an isolated VLAN with VyOS managing DHCP, firewall rules, and routing. VyOS is deployed via Packer from ISO and managed by the `thomasfinstad/vyos-rolling` Terraform provider (API key authentication).
+
+Lab creation automatically generates HCL that:
+- Creates a Proxmox SDN VNet and subnet for the lab VLAN
+- Configures VyOS VLAN interface, DHCP server, and firewall rules via Terraform
+- Assigns static IPs to domain controllers (.10, .11), DHCP to all other VMs
+
+### Flat (networking_mode: flat)
+
+Labs use Proxmox SDN with built-in dnsmasq DHCP. No firewall appliance. Simpler but no per-lab isolation.
 
 ## Secret management patterns
 
 PSWorklab offers two ways to pass secrets to Terraform and Packer:
 
-### Environment variables (Import-LabSecret)
+**Environment variables** (`Import-LabSecret`): Sets `TF_VAR_*` / `PKR_VAR_*` process env vars. Simple, works everywhere.
 
-Secrets are set as process-scoped environment variables (`TF_VAR_*`, `PKR_VAR_*`). Simple and works everywhere, but secrets live in the process environment for the duration of the build.
+**Var files** (`New-SecretVarFile`): Writes secrets to a temp JSON file with restrictive permissions, securely wiped on cleanup.
 
-```powershell
-Import-LabSecret -IncludePacker -TemplateName server-2025
-try { packer build ... }
-finally { Remove-LabSecret }
-```
-
-### Var files (New-SecretVarFile)
-
-Secrets are written to a temporary JSON file with restrictive file permissions. The file is securely wiped on cleanup. Avoids process-wide env var exposure.
-
-```powershell
-$varFile = New-SecretVarFile -Tool Packer -TemplateName server-2025
-try { packer build -var-file="$varFile" ... }
-finally { Remove-SecretVarFile -Path $varFile }
-```
-
-Both patterns track what they create and clean up only what they set -- no hardcoded lists that can go stale.
+Both track what they create and clean up only what they set.
 
 ## Development
-
-### Loading from source
-
-```powershell
-Import-Module ~/Source/PSWorklab/src/PSWorklab/PSWorklab.psd1 -Force
-Initialize-WorklabContext -ProjectRoot ~/Source/worklab
-```
 
 ### Running tests
 
@@ -252,20 +271,18 @@ Invoke-ScriptAnalyzer -Path src/PSWorklab -Recurse -Settings PSScriptAnalyzerSet
 
 ### Adding a new public function
 
-1. Create `src/PSWorklab/Public/Verb-Noun.ps1` with the function (one function per file, filename matches function name)
+1. Create `src/PSWorklab/Public/Verb-Noun.ps1` (one function per file, filename = function name)
 2. Add the function name to `FunctionsToExport` in `src/PSWorklab/PSWorklab.psd1`
 3. Add a test file at `tests/Verb-Noun.Tests.ps1`
 
-The `.psm1` loader automatically dot-sources all `.ps1` files under `Public/` recursively, so no loader changes are needed.
+The `.psm1` loader dot-sources all `.ps1` files under `Public/` recursively.
 
 ### Adding a new hypervisor provider
 
-1. Create `src/PSWorklab/Public/Providers/Connect-WorklabHyperV.ps1` (or similar)
-2. Implement connection and credential setup functions
-3. Add the function names to `FunctionsToExport` in the manifest
-4. Add a case to the `switch ($hypervisor)` block in `Import-LabSecret` and `New-SecretVarFile`
-
-The config-driven dispatch (`Get-ConfigValue $config 'hypervisor'`) already supports this.
+1. Create functions under `src/PSWorklab/Public/Providers/`
+2. Add provider-specific HCL fragments to `src/PSWorklab/Private/HclFragments.ps1`
+3. Add cases to the `switch ($hypervisor)` blocks in `Import-LabSecret`, `New-SecretVarFile`, and `HclFragments.ps1`
+4. Add function names to `FunctionsToExport` in the manifest
 
 ## License
 
