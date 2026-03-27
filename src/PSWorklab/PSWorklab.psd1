@@ -37,6 +37,11 @@
         # Utility
         'Wait-TcpReady',
 
+        # HCL / IaC tooling
+        'Import-PSHcl',
+        'Write-HclFile',
+        'ConvertTo-PackerVarArgs',
+
         # Providers/Proxmox
         'Import-PSProxmoxVE',
         'Connect-WorklabProxmox',

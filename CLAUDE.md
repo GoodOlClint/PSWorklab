@@ -28,6 +28,9 @@ PSWorklab/
       New-SecretVarFile.ps1
       Remove-SecretVarFile.ps1
       Wait-TcpReady.ps1
+      Import-PSHcl.ps1
+      Write-HclFile.ps1
+      ConvertTo-PackerVarArgs.ps1
       Providers/
         Import-PSProxmoxVE.ps1
         Connect-WorklabProxmox.ps1
@@ -67,8 +70,9 @@ All functions kept the same names except:
 - `Microsoft.PowerShell.SecretManagement` -- vault operations
 - `powershell-yaml` -- YAML config parsing
 - `PSProxmoxVE` -- Proxmox API (optional, only needed for Proxmox provider functions)
+- `PSHcl` -- HCL parsing/formatting (optional, only needed for Write-HclFile)
 
-PSProxmoxVE is NOT a RequiredModule in the manifest since it's only needed for Proxmox. `Import-PSProxmoxVE` handles lazy loading with fallback to dev builds at `~/Source/PSProxmoxVE`.
+PSProxmoxVE and PSHcl are NOT RequiredModules in the manifest since they're only needed for specific features. `Import-PSProxmoxVE` and `Import-PSHcl` handle lazy loading.
 
 ## Known PSProxmoxVE Issues
 
@@ -100,7 +104,7 @@ These are tracked on https://github.com/GoodOlClint/PSProxmoxVE:
 
 ### Should do (quality improvements)
 
-4. **Extract Packer var builder** -- the `-var key=value` arrays are duplicated across Build-Template (2x) and Build-Foundation (2x). A `New-PackerArgs` function that takes a config hashtable would remove this.
+4. **~~Extract Packer var builder~~** -- DONE: `ConvertTo-PackerVarArgs` converts a hashtable to `-var key=value` argument arrays. Worklab scripts still need to be updated to use it.
 
 5. **Extract ISO inspection functions** from Build-Template.ps1:
    - `Get-WindowsIsoInfo` -- mount ISO, read WIM edition info (Windows-only)

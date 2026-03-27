@@ -8,6 +8,7 @@ PowerShell module for worklab automation -- secrets, config, and hypervisor inte
 - [Microsoft.PowerShell.SecretManagement](https://www.powershellgallery.com/packages/Microsoft.PowerShell.SecretManagement) -- vault operations
 - [powershell-yaml](https://www.powershellgallery.com/packages/powershell-yaml) -- YAML config parsing
 - [PSProxmoxVE](https://github.com/GoodOlClint/PSProxmoxVE) -- Proxmox API (optional, only needed for Proxmox provider functions)
+- [PSHcl](https://www.powershellgallery.com/packages/PSHcl) -- HCL parsing and formatting (optional, only needed for `Write-HclFile`)
 
 ## Installation
 
@@ -132,6 +133,38 @@ finally {
 | Function | Description |
 |----------|-------------|
 | `Wait-TcpReady` | Poll a TCP port until it responds or times out (cross-platform) |
+
+### HCL / IaC tooling
+
+Functions for working with Terraform and Packer. `Write-HclFile` requires the
+[PSHcl](https://www.powershellgallery.com/packages/PSHcl) module (optional dependency,
+lazy-loaded like PSProxmoxVE).
+
+| Function | Description |
+|----------|-------------|
+| `Import-PSHcl` | Lazy-load the PSHcl module |
+| `Write-HclFile` | Validate HCL syntax, format via round-trip, and write to disk |
+| `ConvertTo-PackerVarArgs` | Convert a hashtable to a `-var key=value` argument array for splatting |
+
+```powershell
+# Generate and write a validated Terraform file
+$hcl = @"
+variable "proxmox_api_token" {
+  type      = string
+  sensitive = true
+}
+"@
+Write-HclFile -Hcl $hcl -Path ./terraform/lab-03 -FileName variables.tf
+
+# Build a packer command with -var args from a hashtable
+$vars = @{
+    proxmox_api_url  = $config.proxmox.api_url
+    proxmox_node     = $config.proxmox.node
+    vm_id            = 9001
+}
+$packerArgs = ConvertTo-PackerVarArgs -Variables $vars -Subcommand build -TrailingArgs $BuildFile
+& packer @packerArgs
+```
 
 ### Providers / Proxmox
 
