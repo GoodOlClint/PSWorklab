@@ -19,6 +19,8 @@ jobs:
           Set-PSRepository PSGallery -InstallationPolicy Trusted
           Install-Module -Name Pester -MinimumVersion 5.0 -Scope CurrentUser -Force
           Install-Module -Name PSScriptAnalyzer -Scope CurrentUser -Force
+          Install-Module -Name powershell-yaml -Scope CurrentUser -Force
+          Install-Module -Name PSHcl -Scope CurrentUser -Force
 
       - name: Run PSScriptAnalyzer
         shell: pwsh
