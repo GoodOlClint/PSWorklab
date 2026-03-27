@@ -21,7 +21,7 @@ Describe 'New-LabTerraform' {
         # worklab-config.yml
         @"
 hypervisor: proxmox
-networking_mode: pfsense
+networking_mode: vyos
 
 proxmox:
   api_url: https://pve.local:8006
@@ -29,10 +29,9 @@ proxmox:
   storage_pool: local-lvm
   sdn_zone: labzone
 
-pfsense:
-  api_url: https://10.0.0.1
-  username: admin
-  lab_device: vtnet1
+vyos:
+  api_url: https://10.0.0.2
+  trunk_interface: eth1
 
 terraform:
   role_defaults:
@@ -98,11 +97,11 @@ infrastructure:
         $mainTf | Should -Match 'bpg/proxmox'
     }
 
-    It 'main.tf contains pfsense provider when networking_mode is pfsense' {
+    It 'main.tf contains VyOS provider when networking_mode is vyos' {
         New-LabTerraform -LabName lab-03 | Out-Null
         $mainTf = Get-Content (Join-Path $labDir 'main.tf') -Raw
-        $mainTf | Should -Match 'provider\s+"pfsense"'
-        $mainTf | Should -Match 'goodolclint/pfsense'
+        $mainTf | Should -Match 'provider\s+"vyos-rolling"'
+        $mainTf | Should -Match 'thomasfinstad/vyos-rolling'
     }
 
     It 'main.tf contains vm_configurations with both DCs' {
@@ -113,11 +112,11 @@ infrastructure:
         $mainTf | Should -Match 'template_id\s+=\s+"9000"'
     }
 
-    It 'variables.tf declares proxmox_api_token and pfsense_password' {
+    It 'variables.tf declares proxmox_api_token and vyos_api_key' {
         New-LabTerraform -LabName lab-03 | Out-Null
         $varsTf = Get-Content (Join-Path $labDir 'variables.tf') -Raw
         $varsTf | Should -Match 'variable\s+"proxmox_api_token"'
-        $varsTf | Should -Match 'variable\s+"pfsense_password"'
+        $varsTf | Should -Match 'variable\s+"vyos_api_key"'
     }
 
     It 'outputs.tf has per-VM IP outputs' {
@@ -131,17 +130,17 @@ infrastructure:
     It 'Generates valid HCL for flat networking mode' {
         # Switch to flat networking
         $configPath = Join-Path $projectDir 'worklab-config.yml'
-        $content = (Get-Content $configPath -Raw) -replace 'networking_mode: pfsense', 'networking_mode: flat'
+        $content = (Get-Content $configPath -Raw) -replace 'networking_mode: vyos', 'networking_mode: flat'
         Set-Content -Path $configPath -Value $content -Encoding UTF8
 
         $result = New-LabTerraform -LabName lab-03
         $result | Should -HaveCount 4
 
         $mainTf = Get-Content (Join-Path $labDir 'main.tf') -Raw
-        $mainTf | Should -Not -Match 'provider\s+"pfsense"'
+        $mainTf | Should -Not -Match 'provider\s+"vyos-rolling"'
 
         $varsTf = Get-Content (Join-Path $labDir 'variables.tf') -Raw
-        $varsTf | Should -Not -Match 'pfsense_password'
+        $varsTf | Should -Not -Match 'vyos_api_key'
     }
 
     It 'Throws when lab-config.yml is missing' {

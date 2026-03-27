@@ -12,7 +12,7 @@ Describe 'Get-ConfigValue' {
                 storage      = 'local-lvm'
                 skip_cert_check = $true
             }
-            networking_mode = 'pfsense'
+            networking_mode = 'vyos'
             empty_value     = ''
             null_value      = $null
         }

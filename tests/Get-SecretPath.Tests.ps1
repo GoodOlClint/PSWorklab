@@ -14,13 +14,13 @@ Describe 'Get-SecretPath' {
     }
 
     It 'Constructs a foundation path without name' {
-        Get-SecretPath -Scope foundation -Key pfsense_password |
-            Should -Be 'worklab/foundation/pfsense_password'
+        Get-SecretPath -Scope foundation -Key admin_password |
+            Should -Be 'worklab/foundation/admin_password'
     }
 
     It 'Constructs a foundation path with optional name' {
-        Get-SecretPath -Scope foundation -Name extra -Key pfsense_password |
-            Should -Be 'worklab/foundation/extra/pfsense_password'
+        Get-SecretPath -Scope foundation -Name extra -Key admin_password |
+            Should -Be 'worklab/foundation/extra/admin_password'
     }
 
     It 'Throws when Name is missing for template scope' {

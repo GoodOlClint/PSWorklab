@@ -5,7 +5,7 @@ function Set-WorklabConfigValue {
     .DESCRIPTION
         Scans the file line by line for the section header, then replaces the target key's
         value. Only supports simple scalar values that are direct children of a top-level
-        section (e.g., proxmox.api_token_id, pfsense.api_url).
+        section (e.g., proxmox.api_token_id, vyos.api_url).
 
         Does NOT support nested sub-sections, multi-line values, or flow sequences.
     .EXAMPLE

@@ -83,7 +83,7 @@ proxmox:
   storage: local-lvm
   skip_cert_check: true
 
-networking_mode: pfsense
+networking_mode: vyos
 ```
 
 ### 3. Set up Proxmox API token

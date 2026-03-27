@@ -52,7 +52,7 @@ function New-LabTerraform {
     # Load worklab config for hypervisor/networking settings
     $config = Get-WorklabConfig
     $hypervisor = Get-ConfigValue $config 'hypervisor' 'proxmox'
-    $networkingMode = Get-ConfigValue $config 'networking_mode' 'pfsense'
+    $networkingMode = Get-ConfigValue $config 'networking_mode' 'vyos'
 
     # Extract network parameters from lab config
     $ipCidr = $labConfig.ip_cidr

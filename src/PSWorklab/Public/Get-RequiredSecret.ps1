@@ -8,7 +8,7 @@ function Get-RequiredSecret {
     .PARAMETER Path
         The vault secret name to retrieve.
     .EXAMPLE
-        $password = Get-RequiredSecret -Path 'worklab/foundation/pfsense_password'
+        $password = Get-RequiredSecret -Path 'worklab/foundation/admin_password'
     #>
     [CmdletBinding()]
     param (

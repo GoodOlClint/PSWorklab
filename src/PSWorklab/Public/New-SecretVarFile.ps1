@@ -47,7 +47,7 @@ function New-SecretVarFile {
 
     $config = Get-WorklabConfig -RequiredFields @('hypervisor')
     $hypervisor = Get-ConfigValue $config 'hypervisor' 'proxmox'
-    $networkingMode = Get-ConfigValue $config 'networking_mode' 'pfsense'
+    $networkingMode = Get-ConfigValue $config 'networking_mode' 'vyos'
 
     $vars = @{}
 
@@ -78,9 +78,8 @@ function New-SecretVarFile {
         $vars['winrm_password'] = Get-OrCreateSecret -Path $tplPath
     }
 
-    if ($Tool -eq 'Terraform' -and $LabName -and $networkingMode -eq 'pfsense') {
-        $pfsPath = Get-SecretPath -Scope foundation -Key pfsense_password
-        $vars['pfsense_password'] = Get-RequiredSecret -Path $pfsPath
+    if ($Tool -eq 'Terraform' -and $LabName -and $networkingMode -eq 'vyos') {
+        $vars['vyos_api_key'] = Get-RequiredSecret -Path "VYOS_API_KEY"
     }
 
     if ($IncludeBackend -and $Tool -eq 'Terraform') {

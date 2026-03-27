@@ -17,7 +17,7 @@ Describe 'New-LabConfig' {
         New-Item -ItemType Directory -Path $configDir -Force | Out-Null
         @"
 hypervisor: proxmox
-networking_mode: pfsense
+networking_mode: vyos
 
 terraform:
   role_defaults:

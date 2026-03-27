@@ -16,8 +16,8 @@ function Get-SecretPath {
         Get-SecretPath -Scope template -Name server-2025 -Key admin_password
         # Returns: worklab/template/server-2025/admin_password
     .EXAMPLE
-        Get-SecretPath -Scope foundation -Key pfsense_password
-        # Returns: worklab/foundation/pfsense_password
+        Get-SecretPath -Scope foundation -Key admin_password
+        # Returns: worklab/foundation/admin_password
     #>
     [CmdletBinding()]
     [OutputType([string])]

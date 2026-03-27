@@ -14,7 +14,7 @@ proxmox:
   node: pve
   storage: local-lvm  # main storage
 
-pfsense:
+vyos:
   api_url: https://10.101.0.1
 "@ | Set-Content -Path $tempFile -Encoding UTF8
     }
@@ -36,7 +36,7 @@ pfsense:
     }
 
     It 'Only modifies the target section' {
-        Set-WorklabConfigValue -Section pfsense -Key api_url -Value 'https://10.101.0.2' -ConfigPath $tempFile
+        Set-WorklabConfigValue -Section vyos -Key api_url -Value 'https://10.101.0.2' -ConfigPath $tempFile
         $content = Get-Content $tempFile -Raw
         $content | Should -Match 'proxmox:'
         $content | Should -Match '  api_url: https://pve.local:8006'

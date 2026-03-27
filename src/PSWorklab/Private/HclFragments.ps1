@@ -39,12 +39,12 @@ variable "hyperv_password" {
         }
     }
 
-    if ($NetworkingMode -eq 'pfsense') {
+    if ($NetworkingMode -eq 'vyos') {
         $hcl += @'
-variable "pfsense_password" {
+variable "vyos_api_key" {
   type        = string
   sensitive   = true
-  description = "pfSense admin password for REST API authentication."
+  description = "VyOS HTTP API key for Terraform provider authentication."
 }
 
 '@
@@ -87,12 +87,12 @@ function Get-RequiredProvidersBlock {
         }
     }
 
-    if ($NetworkingMode -eq 'pfsense') {
+    if ($NetworkingMode -eq 'vyos') {
         $providers += @"
 
-    pfsense = {
-      source  = "goodolclint/pfsense"
-      version = "~> 0.1"
+    vyos = {
+      source  = "thomasfinstad/vyos-rolling"
+      version = "~> 2.0"
     }
 "@
     }
@@ -134,14 +134,12 @@ provider "hyperv" {
         }
     }
 
-    if ($NetworkingMode -eq 'pfsense') {
+    if ($NetworkingMode -eq 'vyos') {
         $blocks += @'
 
-provider "pfsense" {
-  url                      = local.config.pfsense.api_url
-  username                 = local.config.pfsense.username
-  password                 = var.pfsense_password
-  tls_insecure_skip_verify = true
+provider "vyos-rolling" {
+  endpoint = local.config.vyos.api_url
+  api_key  = var.vyos_api_key
 }
 '@
     }
@@ -166,7 +164,7 @@ function Get-LabNetworkModuleBlock {
         'hyperv'  { '{ lab_switch = local.config.hyperv.lab_switch }' }
     }
 
-    $args = @"
+    $moduleArgs = @"
   source             = "../../modules/$Hypervisor/lab-network"
 
   lab_name           = "$LabName"
@@ -178,11 +176,11 @@ function Get-LabNetworkModuleBlock {
   hypervisor_config  = $hypervisorConfig
 "@
 
-    if ($NetworkingMode -eq 'pfsense') {
-        $args += "`n  pfsense_lab_device = local.config.pfsense.lab_device"
+    if ($NetworkingMode -eq 'vyos') {
+        $moduleArgs += "`n  vyos_trunk_interface = local.config.vyos.trunk_interface"
     }
 
-    return $args
+    return $moduleArgs
 }
 
 function Get-VmModuleArgs {

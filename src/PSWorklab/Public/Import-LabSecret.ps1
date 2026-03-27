@@ -19,7 +19,7 @@ function Import-LabSecret {
     .PARAMETER TemplateName
         Template name for looking up the admin password secret.
     .PARAMETER LabName
-        Lab name for looking up lab-specific secrets (e.g., pfSense password).
+        Lab name for looking up lab-specific secrets (e.g., VyOS API key).
     .EXAMPLE
         Import-LabSecret -IncludePacker -TemplateName server-2025
     .EXAMPLE
@@ -35,7 +35,7 @@ function Import-LabSecret {
 
     $config = Get-WorklabConfig -RequiredFields @('hypervisor')
     $hypervisor = Get-ConfigValue $config 'hypervisor' 'proxmox'
-    $networkingMode = Get-ConfigValue $config 'networking_mode' 'pfsense'
+    $networkingMode = Get-ConfigValue $config 'networking_mode' 'vyos'
 
     switch ($hypervisor) {
         'proxmox' {
@@ -63,10 +63,9 @@ function Import-LabSecret {
         Set-TrackedEnvVar -Name "PKR_VAR_winrm_password" -Value $adminPassword
     }
 
-    if ($LabName -and $networkingMode -eq 'pfsense') {
-        $pfsPath = Get-SecretPath -Scope foundation -Key pfsense_password
-        $pfsPassword = Get-RequiredSecret -Path $pfsPath
-        Set-TrackedEnvVar -Name "TF_VAR_pfsense_password" -Value $pfsPassword
+    if ($LabName -and $networkingMode -eq 'vyos') {
+        $vyosApiKey = Get-RequiredSecret -Path "VYOS_API_KEY"
+        Set-TrackedEnvVar -Name "TF_VAR_vyos_api_key" -Value $vyosApiKey
     }
 
     if ($IncludeBackend) {
