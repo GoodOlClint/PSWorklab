@@ -47,6 +47,11 @@
         'Resolve-TemplateVmId',
         'Register-Template',
 
+        # Lab generation
+        'New-Lab',
+        'New-LabConfig',
+        'New-LabTerraform',
+
         # ISO inspection (Windows-only)
         'Get-WindowsIsoInfo',
         'Get-SqlIsoVersion',
