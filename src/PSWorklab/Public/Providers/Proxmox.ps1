@@ -17,8 +17,8 @@ function Import-PSProxmoxVE {
     }
 
     # Fallback: check known development path
-    $devRoot = Join-Path ([Environment]::GetFolderPath('UserProfile')) "Source" "PSProxmoxVE"
-    $binDir = Join-Path $devRoot "src" "PSProxmoxVE" "bin"
+    $devRoot = Join-Path -Path ([Environment]::GetFolderPath('UserProfile')) -ChildPath "Source" -AdditionalChildPath "PSProxmoxVE"
+    $binDir = Join-Path -Path $devRoot -ChildPath "src" -AdditionalChildPath "PSProxmoxVE", "bin"
     $candidates = if (Test-Path $binDir) {
         @(Get-ChildItem -Path $binDir -Recurse -Filter "PSProxmoxVE.psd1" -ErrorAction SilentlyContinue)
     } else { @() }
@@ -26,8 +26,10 @@ function Import-PSProxmoxVE {
     if ($candidates.Count -gt 0) {
         # Prefer Release build, then highest .NET version
         $manifest = $candidates |
-            Sort-Object { $_.FullName -match 'Release' } -Descending |
-            Sort-Object { if ($_.FullName -match 'net(\d+)') { [int]$Matches[1] } else { 0 } } -Descending |
+            Sort-Object @(
+                @{ Expression = { $_.FullName -match 'Release' }; Descending = $true }
+                @{ Expression = { if ($_.FullName -match 'net(\d+)') { [int]$Matches[1] } else { 0 } }; Descending = $true }
+            ) |
             Select-Object -First 1
         Import-Module $manifest.FullName -ErrorAction Stop
         Write-Host "  Loaded PSProxmoxVE from dev path: $($manifest.DirectoryName)" -ForegroundColor DarkGray
@@ -54,16 +56,25 @@ function Connect-WorklabProxmox {
     Import-PSProxmoxVE
 
     $config = Get-WorklabConfig -RequiredFields @('proxmox.api_url', 'proxmox.api_token_id')
-    $tokenSecret = Get-Secret -Vault $script:VaultName -Name "PROXMOX_TOKEN_SECRET" -AsPlainText -ErrorAction Stop
+    $tokenSecret = Get-Secret -Vault $script:VaultName -Name $script:ProxmoxTokenSecretName -AsPlainText -ErrorAction Stop
     $tokenId = $config.proxmox.api_token_id
     $fullToken = "$tokenId=$tokenSecret"
 
     $uri = [System.Uri]::new($config.proxmox.api_url)
     $server = $uri.Host
     $port = if ($uri.Port -gt 0) { $uri.Port } else { 8006 }
+    $skipCert = (Get-ConfigValue $config 'proxmox.skip_cert_check' $true) -eq $true
 
-    $session = Connect-PveServer -Server $server -Port $port -ApiToken $fullToken -SkipCertificateCheck -PassThru
-    Write-Host "  Connected to Proxmox: $server`:$port" -ForegroundColor DarkGray
+    $connectParams = @{
+        Server    = $server
+        Port      = $port
+        ApiToken  = $fullToken
+        PassThru  = $true
+    }
+    if ($skipCert) { $connectParams.SkipCertificateCheck = $true }
+
+    $session = Connect-PveServer @connectParams
+    Write-Host "  Connected to Proxmox: ${server}:${port}" -ForegroundColor DarkGray
     return $session
 }
 
@@ -82,7 +93,8 @@ function Initialize-ProxmoxToken {
     .OUTPUTS
         The API token ID string (e.g. "root@pam!worklab").
     #>
-    [CmdletBinding()]
+    [CmdletBinding(SupportsShouldProcess)]
+    [OutputType([string])]
     param (
         [Parameter(HelpMessage = "Proxmox credentials (prompted if not supplied).")]
         [PSCredential]$Credential,
@@ -98,6 +110,7 @@ function Initialize-ProxmoxToken {
     $uri = [System.Uri]::new($config.proxmox.api_url)
     $server = $uri.Host
     $port = if ($uri.Port -gt 0) { $uri.Port } else { 8006 }
+    $skipCert = (Get-ConfigValue $config 'proxmox.skip_cert_check' $true) -eq $true
 
     # Prompt for credentials if not supplied
     if (-not $Credential) {
@@ -113,8 +126,15 @@ function Initialize-ProxmoxToken {
     $roleName = "worklab-automation"
     $fullTokenId = "$userId!$tokenName"
 
+    $connectParams = @{
+        Server     = $server
+        Port       = $port
+        Credential = $Credential
+    }
+    if ($skipCert) { $connectParams.SkipCertificateCheck = $true }
+
     Write-Host "  Connecting to Proxmox as $userId..." -ForegroundColor DarkGray
-    Connect-PveServer -Server $server -Port $port -Credential $Credential -SkipCertificateCheck | Out-Null
+    Connect-PveServer @connectParams | Out-Null
 
     # --- Create role ---
     $privileges = @(
@@ -130,8 +150,10 @@ function Initialize-ProxmoxToken {
 
     $existingRole = Get-PveRole | Where-Object { $_.RoleId -eq $roleName }
     if (-not $existingRole) {
-        Write-Host "  Creating role: $roleName" -ForegroundColor DarkGray
-        New-PveRole -RoleId $roleName -Privileges $privileges
+        if ($PSCmdlet.ShouldProcess("Proxmox role '$roleName'", "Create role with worklab privileges")) {
+            Write-Host "  Creating role: $roleName" -ForegroundColor DarkGray
+            New-PveRole -RoleId $roleName -Privileges $privileges
+        }
     }
     else {
         Write-Host "  Role already exists: $roleName" -ForegroundColor DarkGray
@@ -142,16 +164,18 @@ function Initialize-ProxmoxToken {
     $existingToken = Get-PveApiToken -UserId $userId | Where-Object { $_.TokenId -eq $tokenName }
 
     if ($existingToken -and $Force) {
-        Write-Host "  Removing existing token: $fullTokenId" -ForegroundColor Yellow
-        Remove-PveApiToken -UserId $userId -TokenId $tokenName -Confirm:$false
-        $existingToken = $null
+        if ($PSCmdlet.ShouldProcess("Proxmox API token '$fullTokenId'", "Remove existing token")) {
+            Write-Host "  Removing existing token: $fullTokenId" -ForegroundColor Yellow
+            Remove-PveApiToken -UserId $userId -TokenId $tokenName -Confirm:$false
+            $existingToken = $null
+        }
     }
 
     if ($existingToken) {
         Write-Host "  Token already exists: $fullTokenId (use -Force to regenerate)" -ForegroundColor DarkGray
         Set-WorklabConfigValue -Section proxmox -Key api_token_id -Value $fullTokenId
 
-        $vaultEntry = Get-SecretInfo -Vault $script:VaultName -Name "PROXMOX_TOKEN_SECRET" -ErrorAction SilentlyContinue
+        $vaultEntry = Get-SecretInfo -Vault $script:VaultName -Name $script:ProxmoxTokenSecretName -ErrorAction SilentlyContinue
         if (-not $vaultEntry) {
             Write-Host "  WARNING: Token exists in Proxmox but secret is not in the vault." -ForegroundColor Yellow
             Write-Host "  Use -Force to regenerate, or manually add the token secret:" -ForegroundColor Yellow
@@ -161,26 +185,34 @@ function Initialize-ProxmoxToken {
         return $fullTokenId
     }
 
-    Write-Host "  Creating API token: $fullTokenId" -ForegroundColor DarkGray
-    $token = New-PveApiToken -UserId $userId -TokenId $tokenName `
-        -Comment "Worklab automation token (Packer, Terraform, scripts)" `
-        -PrivilegeSeparation
+    if ($PSCmdlet.ShouldProcess("Proxmox API token '$fullTokenId'", "Create token, grant role, and store in vault")) {
+        Write-Host "  Creating API token: $fullTokenId" -ForegroundColor DarkGray
+        $token = New-PveApiToken -UserId $userId -TokenId $tokenName `
+            -Comment "Worklab automation token (Packer, Terraform, scripts)" `
+            -PrivilegeSeparation
 
-    # --- Grant role to token ---
-    Write-Host "  Granting $roleName to $fullTokenId at /" -ForegroundColor DarkGray
-    Set-PvePermission -Path "/" -UgId $fullTokenId -Role $roleName -Propagate
+        # --- Grant role to token ---
+        Write-Host "  Granting $roleName to $fullTokenId at /" -ForegroundColor DarkGray
+        Set-PvePermission -Path "/" -UgId $fullTokenId -Role $roleName -Propagate
 
-    # --- Store in vault and config ---
-    Set-Secret -Vault $script:VaultName -Name "PROXMOX_TOKEN_SECRET" -Secret $token.Value -ErrorAction Stop
-    Write-Host "  Stored token secret in vault as PROXMOX_TOKEN_SECRET" -ForegroundColor Green
+        # --- Store in vault and config ---
+        Set-Secret -Vault $script:VaultName -Name $script:ProxmoxTokenSecretName -Secret $token.Value -ErrorAction Stop
+        Write-Host "  Stored token secret in vault as $($script:ProxmoxTokenSecretName)" -ForegroundColor Green
 
-    Set-WorklabConfigValue -Section proxmox -Key api_token_id -Value $fullTokenId
+        Set-WorklabConfigValue -Section proxmox -Key api_token_id -Value $fullTokenId
 
-    # --- Verify ---
-    Write-Host "  Verifying token authentication..." -ForegroundColor DarkGray
-    $fullApiToken = "$fullTokenId=$($token.Value)"
-    Connect-PveServer -Server $server -Port $port -ApiToken $fullApiToken -SkipCertificateCheck | Out-Null
-    Write-Host "  Token verified successfully." -ForegroundColor Green
+        # --- Verify ---
+        Write-Host "  Verifying token authentication..." -ForegroundColor DarkGray
+        $fullApiToken = "$fullTokenId=$($token.Value)"
+        $verifyParams = @{
+            Server   = $server
+            Port     = $port
+            ApiToken = $fullApiToken
+        }
+        if ($skipCert) { $verifyParams.SkipCertificateCheck = $true }
+        Connect-PveServer @verifyParams | Out-Null
+        Write-Host "  Token verified successfully." -ForegroundColor Green
 
-    return $fullTokenId
+        return $fullTokenId
+    }
 }

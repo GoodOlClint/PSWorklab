@@ -2,10 +2,11 @@
 
 $script:VaultName = "WorklabVault"
 $script:ProjectRoot = $null  # Set by Initialize-WorklabContext or callers
+$script:ProxmoxTokenSecretName = "PROXMOX_TOKEN_SECRET"
 
 # User-provisioned secrets per hypervisor
 $script:HypervisorSecrets = @{
-    proxmox = @("PROXMOX_TOKEN_SECRET")
+    proxmox = @($script:ProxmoxTokenSecretName)
     hyperv  = @("HYPERV_PASSWORD")
     vmware  = @("VSPHERE_PASSWORD")
 }
@@ -16,5 +17,5 @@ $script:BackendSecretNames = @(
     "AWS_SECRET_ACCESS_KEY"
 )
 
-# Tracks which env vars Import-LabSecrets actually set (for cleanup)
+# Tracks which env vars Import-LabSecret actually set (for cleanup)
 $script:LoadedEnvVars = [System.Collections.Generic.List[string]]::new()

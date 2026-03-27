@@ -5,7 +5,8 @@
     Author            = 'GoodOlClint'
     Description       = 'PowerShell module for worklab automation -- secrets, config, and hypervisor integration for Packer/Terraform/DSC lab workflows.'
 
-    PowerShellVersion = '7.0'
+    PowerShellVersion    = '7.0'
+    CompatiblePSEditions = @('Core')
 
     RequiredModules   = @(
         'Microsoft.PowerShell.SecretManagement',
@@ -24,10 +25,14 @@
         'Get-SecretPath',
         'Get-OrCreateSecret',
         'Get-RequiredSecret',
-        'Remove-ScopedSecrets',
+        'Remove-ScopedSecret',
         'Test-VaultReady',
-        'Import-LabSecrets',
-        'Remove-LabSecrets',
+        'Import-LabSecret',
+        'Remove-LabSecret',
+
+        # Secret var files (alternative to env vars for Terraform/Packer)
+        'New-SecretVarFile',
+        'Remove-SecretVarFile',
 
         # Utility
         'Wait-TcpReady',

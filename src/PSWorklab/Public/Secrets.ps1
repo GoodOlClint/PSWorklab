@@ -7,6 +7,7 @@ function New-ComplexPassword {
         Guarantees at least 1 uppercase, 1 lowercase, 1 digit, 1 symbol.
         Avoids shell-hostile characters: ` $ " ' < > & \ { }
     #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '')]
     [CmdletBinding()]
     param (
         [ValidateRange(12, 128)]
@@ -20,34 +21,42 @@ function New-ComplexPassword {
     $all     = $upper + $lower + $digits + $symbols
 
     $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+    try {
+        # Unbiased random index: reject values that would cause modulo bias
+        $pickRandom = {
+            param ([string]$CharSet)
+            $len = $CharSet.Length
+            $limit = 256 - (256 % $len)
+            do {
+                $bytes = [byte[]]::new(1)
+                $rng.GetBytes($bytes)
+            } while ($bytes[0] -ge $limit)
+            return $CharSet[$bytes[0] % $len]
+        }
 
-    $pickRandom = {
-        param ([string]$CharSet)
-        $bytes = [byte[]]::new(1)
-        $rng.GetBytes($bytes)
-        return $CharSet[$bytes[0] % $CharSet.Length]
+        # Guarantee one of each class
+        $chars = [System.Collections.Generic.List[char]]::new()
+        $chars.Add((&$pickRandom $upper))
+        $chars.Add((&$pickRandom $lower))
+        $chars.Add((&$pickRandom $digits))
+        $chars.Add((&$pickRandom $symbols))
+
+        for ($i = 4; $i -lt $Length; $i++) {
+            $chars.Add((&$pickRandom $all))
+        }
+
+        # Fisher-Yates shuffle (4 bytes per index for negligible bias on small arrays)
+        for ($i = $chars.Count - 1; $i -gt 0; $i--) {
+            $buf = [byte[]]::new(4)
+            $rng.GetBytes($buf)
+            $j = [System.Math]::Abs([System.BitConverter]::ToInt32($buf, 0)) % ($i + 1)
+            $temp = $chars[$i]; $chars[$i] = $chars[$j]; $chars[$j] = $temp
+        }
+    }
+    finally {
+        $rng.Dispose()
     }
 
-    # Guarantee one of each class
-    $chars = [System.Collections.Generic.List[char]]::new()
-    $chars.Add((&$pickRandom $upper))
-    $chars.Add((&$pickRandom $lower))
-    $chars.Add((&$pickRandom $digits))
-    $chars.Add((&$pickRandom $symbols))
-
-    for ($i = 4; $i -lt $Length; $i++) {
-        $chars.Add((&$pickRandom $all))
-    }
-
-    # Fisher-Yates shuffle
-    $bytes = [byte[]]::new($chars.Count)
-    $rng.GetBytes($bytes)
-    for ($i = $chars.Count - 1; $i -gt 0; $i--) {
-        $j = $bytes[$i] % ($i + 1)
-        $temp = $chars[$i]; $chars[$i] = $chars[$j]; $chars[$j] = $temp
-    }
-
-    $rng.Dispose()
     return -join $chars
 }
 
@@ -60,6 +69,7 @@ function Get-SecretPath {
         # Returns: worklab/template/server-2025/admin_password
     #>
     [CmdletBinding()]
+    [OutputType([string])]
     param (
         [Parameter(Mandatory)]
         [ValidateSet('template', 'foundation', 'lab')]
@@ -87,7 +97,7 @@ function Get-OrCreateSecret {
         Idempotent: returns the existing value if present, generates and
         stores a new password if missing (or if -Force is specified).
     #>
-    [CmdletBinding()]
+    [CmdletBinding(SupportsShouldProcess)]
     param (
         [Parameter(Mandatory)]
         [string]$Path,
@@ -107,10 +117,12 @@ function Get-OrCreateSecret {
         }
     }
 
-    $password = New-ComplexPassword -Length $Length
-    Set-Secret -Vault $script:VaultName -Name $Path -Secret $password -ErrorAction Stop
-    Write-Host "  Generated secret: $Path" -ForegroundColor DarkGray
-    return $password
+    if ($PSCmdlet.ShouldProcess("Secret '$Path' in vault '$($script:VaultName)'", "Generate and store new secret")) {
+        $password = New-ComplexPassword -Length $Length
+        Set-Secret -Vault $script:VaultName -Name $Path -Secret $password -ErrorAction Stop
+        Write-Host "  Generated secret: $Path" -ForegroundColor DarkGray
+        return $password
+    }
 }
 
 function Get-RequiredSecret {
@@ -132,15 +144,15 @@ function Get-RequiredSecret {
     return Get-Secret -Vault $script:VaultName -Name $Path -AsPlainText -ErrorAction Stop
 }
 
-function Remove-ScopedSecrets {
+function Remove-ScopedSecret {
     <#
     .SYNOPSIS
         Removes all vault secrets matching a scope/name prefix.
     .EXAMPLE
-        Remove-ScopedSecrets -Scope lab -Name lab-03
+        Remove-ScopedSecret -Scope lab -Name lab-03
         # Removes all secrets matching worklab/lab/lab-03/*
     #>
-    [CmdletBinding()]
+    [CmdletBinding(SupportsShouldProcess)]
     param (
         [Parameter(Mandatory)]
         [ValidateSet('template', 'foundation', 'lab')]
@@ -155,8 +167,10 @@ function Remove-ScopedSecrets {
         Where-Object { $_.Name -like "$prefix*" })
 
     foreach ($s in $secrets) {
-        Remove-Secret -Vault $script:VaultName -Name $s.Name -ErrorAction SilentlyContinue
-        Write-Host "  Removed secret: $($s.Name)" -ForegroundColor DarkGray
+        if ($PSCmdlet.ShouldProcess($s.Name, "Remove secret from $($script:VaultName)")) {
+            Remove-Secret -Vault $script:VaultName -Name $s.Name -ErrorAction SilentlyContinue
+            Write-Host "  Removed secret: $($s.Name)" -ForegroundColor DarkGray
+        }
     }
 
     return $secrets.Count
@@ -219,13 +233,20 @@ function Test-VaultReady {
     return $true
 }
 
-function Import-LabSecrets {
+function Import-LabSecret {
     <#
     .SYNOPSIS
         Loads secrets from the vault and sets tool-specific environment variables.
     .DESCRIPTION
-        Tracks which env vars are set so Remove-LabSecrets can clean up exactly
+        Tracks which env vars are set so Remove-LabSecret can clean up exactly
         what was loaded (no stale hardcoded list).
+
+        Callers should wrap usage in try/finally to ensure Remove-LabSecret
+        runs even on failure:
+
+            Import-LabSecret -IncludePacker -TemplateName $name
+            try { packer build ... }
+            finally { Remove-LabSecret }
     #>
     [CmdletBinding()]
     param (
@@ -235,65 +256,64 @@ function Import-LabSecrets {
         [string]$LabName
     )
 
-    $config = Get-WorklabConfig
+    $config = Get-WorklabConfig -RequiredFields @('hypervisor')
     $hypervisor = Get-ConfigValue $config 'hypervisor' 'proxmox'
     $networkingMode = Get-ConfigValue $config 'networking_mode' 'pfsense'
 
-    # Helper to set an env var and track it for cleanup
-    $setEnv = {
-        param ([string]$Name, [string]$Value)
-        [System.Environment]::SetEnvironmentVariable($Name, $Value, "Process")
-        if ($Name -notin $script:LoadedEnvVars) {
-            $script:LoadedEnvVars.Add($Name)
-        }
-    }
-
     switch ($hypervisor) {
         'proxmox' {
-            $tokenSecret = Get-Secret -Vault $script:VaultName -Name "PROXMOX_TOKEN_SECRET" -AsPlainText -ErrorAction Stop
-            & $setEnv "PROXMOX_TOKEN_SECRET" $tokenSecret
+            $tokenSecret = Get-Secret -Vault $script:VaultName -Name $script:ProxmoxTokenSecretName -AsPlainText -ErrorAction Stop
+            Set-TrackedEnvVar -Name $script:ProxmoxTokenSecretName -Value $tokenSecret
 
-            $tokenId = $config.proxmox.api_token_id
-            & $setEnv "TF_VAR_proxmox_api_token" "$tokenId=$tokenSecret"
+            $tokenId = Get-ConfigValue $config 'proxmox.api_token_id'
+            if (-not $tokenId) {
+                throw "Config field 'proxmox.api_token_id' is required for secret loading. Run Initialize-ProxmoxToken first."
+            }
+            Set-TrackedEnvVar -Name "TF_VAR_proxmox_api_token" -Value "$tokenId=$tokenSecret"
 
             if ($IncludePacker) {
-                & $setEnv "PKR_VAR_proxmox_api_token_secret" $tokenSecret
+                Set-TrackedEnvVar -Name "PKR_VAR_proxmox_api_token_secret" -Value $tokenSecret
             }
+        }
+        default {
+            Write-Warning "No secret-loading logic implemented for hypervisor '$hypervisor'. Only env vars common to all hypervisors will be set."
         }
     }
 
     if ($IncludePacker -and $TemplateName) {
         $tplPath = Get-SecretPath -Scope template -Name $TemplateName -Key admin_password
         $adminPassword = Get-OrCreateSecret -Path $tplPath
-        & $setEnv "PKR_VAR_winrm_password" $adminPassword
+        Set-TrackedEnvVar -Name "PKR_VAR_winrm_password" -Value $adminPassword
     }
 
     if ($LabName -and $networkingMode -eq 'pfsense') {
         $pfsPath = Get-SecretPath -Scope foundation -Key pfsense_password
         $pfsPassword = Get-RequiredSecret -Path $pfsPath
-        & $setEnv "TF_VAR_pfsense_password" $pfsPassword
+        Set-TrackedEnvVar -Name "TF_VAR_pfsense_password" -Value $pfsPassword
     }
 
     if ($IncludeBackend) {
         foreach ($name in $script:BackendSecretNames) {
             $value = Get-Secret -Vault $script:VaultName -Name $name -AsPlainText -ErrorAction Stop
-            & $setEnv $name $value
+            Set-TrackedEnvVar -Name $name -Value $value
         }
     }
 
     Write-Host "Loaded $($script:LoadedEnvVars.Count) env vars ($hypervisor/$networkingMode)." -ForegroundColor DarkGray
 }
 
-function Remove-LabSecrets {
+function Remove-LabSecret {
     <#
     .SYNOPSIS
-        Removes all secret environment variables set by Import-LabSecrets.
+        Removes all secret environment variables set by Import-LabSecret.
     #>
-    [CmdletBinding()]
+    [CmdletBinding(SupportsShouldProcess)]
     param ()
 
-    foreach ($name in $script:LoadedEnvVars) {
-        [System.Environment]::SetEnvironmentVariable($name, $null, "Process")
+    if ($PSCmdlet.ShouldProcess("$($script:LoadedEnvVars.Count) env vars", "Clear secret environment variables")) {
+        foreach ($name in $script:LoadedEnvVars) {
+            [System.Environment]::SetEnvironmentVariable($name, $null, "Process")
+        }
+        $script:LoadedEnvVars.Clear()
     }
-    $script:LoadedEnvVars.Clear()
 }

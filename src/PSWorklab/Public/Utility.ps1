@@ -16,31 +16,34 @@ function Wait-TcpReady {
         [Parameter(Mandatory)]
         [int]$Port,
 
-        [string]$Name = "$IP`:$Port",
+        [string]$Name = "${IP}:${Port}",
 
         [int]$TimeoutSeconds = 300,
 
         [int]$PollIntervalSeconds = 5
     )
 
-    Write-Host "  Waiting for $Name ($IP`:$Port)..." -NoNewline
+    Write-Host "  Waiting for $Name (${IP}:${Port})..." -NoNewline
     $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
 
     while ((Get-Date) -lt $deadline) {
+        $tcp = $null
         try {
             $tcp = [System.Net.Sockets.TcpClient]::new()
-            $tcp.ConnectAsync($IP, $Port).Wait(3000) | Out-Null
-            if ($tcp.Connected) {
-                $tcp.Close()
+            if ($tcp.ConnectAsync($IP, $Port).Wait(3000) -and $tcp.Connected) {
                 Write-Host " ready." -ForegroundColor Green
                 return
             }
-            $tcp.Dispose()
         }
-        catch { }
+        catch {
+            Write-Verbose "Connection attempt to ${IP}:${Port} failed: $($_.Exception.Message)"
+        }
+        finally {
+            if ($tcp) { $tcp.Dispose() }
+        }
         Start-Sleep -Seconds $PollIntervalSeconds
     }
 
     Write-Host " TIMEOUT" -ForegroundColor Red
-    throw "$Name at $IP`:$Port not reachable after $TimeoutSeconds seconds."
+    throw "$Name at ${IP}:${Port} not reachable after $TimeoutSeconds seconds."
 }

@@ -47,7 +47,13 @@ function Get-WorklabConfig {
     foreach ($field in $RequiredFields) {
         $value = $config
         foreach ($part in ($field -split '\.')) {
-            $value = $value[$part]
+            if ($value -is [hashtable] -and $value.Contains($part)) {
+                $value = $value[$part]
+            }
+            else {
+                $value = $null
+                break
+            }
         }
         if ([string]::IsNullOrWhiteSpace($value)) {
             throw "Required config field '$field' is empty in $ConfigPath"
@@ -66,6 +72,7 @@ function Get-ConfigValue {
         Get-ConfigValue $config 'proxmox.node' 'pve'
     #>
     [CmdletBinding()]
+    [OutputType([object])]
     param (
         [Parameter(Mandatory)]
         [hashtable]$Config,
@@ -103,7 +110,7 @@ function Set-WorklabConfigValue {
     .EXAMPLE
         Set-WorklabConfigValue -Section proxmox -Key api_token_id -Value 'root@pam!worklab'
     #>
-    [CmdletBinding()]
+    [CmdletBinding(SupportsShouldProcess)]
     param (
         [Parameter(Mandatory)]
         [string]$Section,
@@ -138,9 +145,9 @@ function Set-WorklabConfigValue {
 
         # Direct child key (exactly 2-space indent)
         if ($inSection -and $line -match "^  ${Key}:\s") {
-            # Preserve any inline comment
-            if ($line -match '^(  ' + [regex]::Escape($Key) + ':\s*)\S.*?(#.*)$') {
-                $lines[$i] = "$($Matches[1])$Value         $($Matches[2])"
+            # Preserve inline YAML comments (space + # signals a comment; bare # in values is not a comment)
+            if ($line -match '^(  ' + [regex]::Escape($Key) + ':\s*)\S.*?(\s+#.*)$') {
+                $lines[$i] = "  ${Key}: ${Value}$($Matches[2])"
             }
             else {
                 $lines[$i] = "  ${Key}: ${Value}"
@@ -150,11 +157,13 @@ function Set-WorklabConfigValue {
         }
     }
 
-    if ($found) {
+    if (-not $found) {
+        Write-Warning "Could not find ${Section}.${Key} in $ConfigPath -- update manually."
+        return
+    }
+
+    if ($PSCmdlet.ShouldProcess("${Section}.${Key} in $ConfigPath", "Update config value to '$Value'")) {
         Set-Content -Path $ConfigPath -Value $lines -Encoding UTF8
         Write-Host "  Updated ${Section}.${Key} in $ConfigPath" -ForegroundColor DarkGray
-    }
-    else {
-        Write-Warning "Could not find ${Section}.${Key} in $ConfigPath -- update manually."
     }
 }
