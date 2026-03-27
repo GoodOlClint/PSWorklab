@@ -42,10 +42,20 @@
         'Write-HclFile',
         'ConvertTo-PackerVarArgs',
 
+        # Template registry
+        'Get-TemplateRegistry',
+        'Resolve-TemplateVmId',
+        'Register-Template',
+
+        # ISO inspection (Windows-only)
+        'Get-WindowsIsoInfo',
+        'Get-SqlIsoVersion',
+
         # Providers/Proxmox
         'Import-PSProxmoxVE',
         'Connect-WorklabProxmox',
-        'Initialize-ProxmoxToken'
+        'Initialize-ProxmoxToken',
+        'Get-NextProxmoxVmId'
     )
 
     CmdletsToExport   = @()

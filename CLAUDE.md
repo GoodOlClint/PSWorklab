@@ -30,10 +30,16 @@ PSWorklab/
       Wait-TcpReady.ps1
       Write-HclFile.ps1
       ConvertTo-PackerVarArgs.ps1
+      Get-TemplateRegistry.ps1
+      Resolve-TemplateVmId.ps1
+      Register-Template.ps1
+      Get-WindowsIsoInfo.ps1        # Windows-only
+      Get-SqlIsoVersion.ps1         # Windows-only
       Providers/
         Import-PSProxmoxVE.ps1
         Connect-WorklabProxmox.ps1
         Initialize-ProxmoxToken.ps1
+        Get-NextProxmoxVmId.ps1
 ```
 
 ## How It Works
@@ -93,11 +99,7 @@ These are tracked on https://github.com/GoodOlClint/PSProxmoxVE:
    - Replace `Wait-ForWinRM` in Spinup.ps1 with `Wait-TcpReady -Port 5986`
    - Delete `scripts/SecretHelpers.ps1` from worklab once all scripts are updated
 
-2. **Extract template registry functions** from Build-Template.ps1 into this module:
-   - `Resolve-TemplateVmId` -- lookup template name -> VM ID from `worklab-templates.yml`
-   - `Register-Template` -- add/update entry in the registry
-   - `Get-NextVmId` -- allocate next available VM ID >= 9000 from Proxmox
-   - These are duplicated 4x across Build-Template.ps1 and New-Lab.ps1
+2. **~~Extract template registry functions~~** -- DONE: `Get-TemplateRegistry`, `Resolve-TemplateVmId`, `Register-Template`, `Get-NextProxmoxVmId`. Worklab scripts still need to be updated to use them.
 
 3. **Add try/finally to Build-Foundation.ps1** -- secrets are loaded but never cleaned up on failure (Build-Template and Spinup already have this pattern)
 
@@ -105,9 +107,7 @@ These are tracked on https://github.com/GoodOlClint/PSProxmoxVE:
 
 4. **~~Extract Packer var builder~~** -- DONE: `ConvertTo-PackerVarArgs` converts a hashtable to `-var key=value` argument arrays. Worklab scripts still need to be updated to use it.
 
-5. **Extract ISO inspection functions** from Build-Template.ps1:
-   - `Get-WindowsIsoInfo` -- mount ISO, read WIM edition info (Windows-only)
-   - `Get-SqlIsoVersion` -- mount ISO, read setup.exe version (Windows-only)
+5. **~~Extract ISO inspection functions~~** -- DONE: `Get-WindowsIsoInfo`, `Get-SqlIsoVersion`. Both are Windows-only and documented as such.
 
 6. **Set-WorklabConfigValue robustness** -- currently uses line-by-line scan for direct children of top-level sections. This works for all current use cases but document the limitation clearly. Consider adding validation that the key was actually a direct child.
 

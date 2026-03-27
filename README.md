@@ -165,6 +165,27 @@ $packerArgs = ConvertTo-PackerVarArgs -Variables $vars -Subcommand build -Traili
 & packer @packerArgs
 ```
 
+### Template registry
+
+Functions for managing `build-info/worklab-templates.yml`, which tracks Packer-built
+VM templates and their IDs.
+
+| Function | Description |
+|----------|-------------|
+| `Get-TemplateRegistry` | Load the template registry as a hashtable |
+| `Resolve-TemplateVmId` | Look up a template name to VM ID (or reverse lookup by ID) |
+| `Register-Template` | Add or update a template entry after a successful build |
+
+### ISO inspection (Windows-only)
+
+These functions mount ISOs to extract version metadata. They require Windows
+(DISM module and Mount-DiskImage). Pass version parameters explicitly on other platforms.
+
+| Function | Description |
+|----------|-------------|
+| `Get-WindowsIsoInfo` | Mount a Windows Server ISO and return version year + WIM image name |
+| `Get-SqlIsoVersion` | Mount a SQL Server ISO and return the release year |
+
 ### Providers / Proxmox
 
 | Function | Description |
@@ -172,6 +193,7 @@ $packerArgs = ConvertTo-PackerVarArgs -Variables $vars -Subcommand build -Traili
 | `Import-PSProxmoxVE` | Lazy-load the PSProxmoxVE module from installed or dev paths |
 | `Connect-WorklabProxmox` | Connect to Proxmox using config and vault credentials |
 | `Initialize-ProxmoxToken` | Create a least-privilege API token and store it in the vault |
+| `Get-NextProxmoxVmId` | Find the next available VM ID on a Proxmox node |
 
 ## Secret management patterns
 
